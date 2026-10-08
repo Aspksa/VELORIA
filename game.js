@@ -106,15 +106,32 @@ function stepPerson(p){
  movePerson(p);
 }
 function buildHouse(){
+ if(world.buildings.some(b=>b.stage!==undefined&&b.stage<4))return false;
+ if(world.wood<18||world.people.length<world.homes*3)return false;
  for(let radius=3;radius<24;radius++){
   for(let i=0;i<32;i++){
    const angle=i*Math.PI/16,x=Math.round(64+Math.cos(angle)*radius),y=Math.round(64+Math.sin(angle)*radius);
    if(!reachable(x,y)||world.buildings.some(b=>Math.abs(b.x-x)<2&&Math.abs(b.y-y)<2))continue;
    const path=pathTo({x:64.5,y:64.5},{x:x+.5,y:y+.5});if(!path)continue;
-   world.buildings.push({x,y,type:'дом'});world.homes++;world.wood-=18;addEvent('Жители возвели ещё один дом.');return true;
+   const organizer=world.people.find(p=>p.energy>20&&p.hunger<70)||world.people[0];
+   world.buildings.push({x,y,type:'дом',stage:0,startedBy:organizer?.id||null,work:0});
+   world.wood-=18;addEvent((organizer?.name||'Жители')+' начал(а) строить дом.');
+   return true;
   }
  }
  return false;
+}
+function advanceConstruction(){
+ for(const b of world.buildings){
+  if(b.stage===undefined||b.stage>=4)continue;
+  const workers=world.people.filter(p=>p.energy>15&&p.hunger<75&&dist(p,b)<12);
+  if(!workers.length)continue;
+  b.work=(b.work||0)+workers.length;
+  if(b.work<6)return;
+  b.work=0;b.stage++;
+  if(b.stage===4){world.homes++;addEvent('Новый дом достроен и заселён.');}
+  else addEvent('Дом: '+['фундамент','каркас','стены','крыша'][b.stage-1]+' готов.');
+ }
 }
 
 /* v0.4.0: material experiments and emergent village culture.
@@ -215,12 +232,13 @@ function simulation(){
  if(world.tick%120===0){
   world.day++;
   civilizationCycle();
+  advanceConstruction();
   if(world.wood>=18&&world.people.length>=world.homes*3)buildHouse();
   if(world.people.length<world.homes*3&&world.food>=18&&Math.random()<.45){addPerson(64+rnd(-1,1),64+rnd(-1,1));world.food-=6;addEvent('В деревне появился новый житель.');}
   if(world.day%8===0)addEvent('Жители обсуждают накопленный опыт.');updateUI();
  }
 }
-function updateUI(){stats.innerHTML=`🌅 День: <b>${world.day}</b><br>👥 Жителей: <b>${world.people.length}</b><br>🍎 Еда: <b>${world.food}</b><br>🪵 Древесина: <b>${world.wood}</b><br>🏠 Домов: <b>${world.homes}</b><br>🧠 Проверенных опытов: <b>${world.innovation||0}</b><br>⚗️ Материальных экспериментов: <b>${culture().experiments}</b><br>🤝 Социальных связей: <b>${Object.keys(culture().relations).length}</b><br>💡 Открытий: <b>${(world.discoveries||[]).length}</b><br>🌍 Размер мира: ${W} × ${H}`;log.replaceChildren(...world.events.slice(0,16).map(s=>{let d=document.createElement('div');d.textContent=s;return d}));if(selected){if(selected.kind==='person'){let p=world.people.find(x=>x.id===selected.id);details.textContent=p?`${p.name} · ${p.job} · возраст ${p.age} · голод ${Math.round(p.hunger)}% · энергия ${Math.round(p.energy)}% · цель: ${ensureMind(p).goal} · опытов: ${ensureMind(p).trials} · память: ${ensureMind(p).memories.slice(-2).map(m=>m.message).join('; ')}`:'Житель покинул мир.';}else details.textContent=`Клетка (${selected.x}, ${selected.y}) · ${['глубокая вода','берег','равнина','лес','горы'][tile(selected.x,selected.y)]}`;}}
+function updateUI(){stats.innerHTML=`🌅 День: <b>${world.day}</b><br>👥 Жителей: <b>${world.people.length}</b><br>🍎 Еда: <b>${world.food}</b><br>🪵 Древесина: <b>${world.wood}</b><br>🏠 Домов: <b>${world.homes}</b><br>🏗️ Строится: <b>${world.buildings.filter(b=>b.stage!==undefined&&b.stage<4).length}</b><br>🧠 Проверенных опытов: <b>${world.innovation||0}</b><br>⚗️ Материальных экспериментов: <b>${culture().experiments}</b><br>🤝 Социальных связей: <b>${Object.keys(culture().relations).length}</b><br>💡 Открытий: <b>${(world.discoveries||[]).length}</b><br>🌍 Размер мира: ${W} × ${H}`;log.replaceChildren(...world.events.slice(0,16).map(s=>{let d=document.createElement('div');d.textContent=s;return d}));if(selected){if(selected.kind==='person'){let p=world.people.find(x=>x.id===selected.id);details.textContent=p?`${p.name} · ${p.job} · возраст ${p.age} · голод ${Math.round(p.hunger)}% · энергия ${Math.round(p.energy)}% · цель: ${ensureMind(p).goal} · опытов: ${ensureMind(p).trials} · память: ${ensureMind(p).memories.slice(-2).map(m=>m.message).join('; ')}`:'Житель покинул мир.';}else details.textContent=`Клетка (${selected.x}, ${selected.y}) · ${['глубокая вода','берег','равнина','лес','горы'][tile(selected.x,selected.y)]}`;}}
 
 const palette={water:'#237d9c',shore:'#d0bc7a',grass:'#82ae60',forest:'#548f52',mountain:'#7d8d81'};
 function noise(x,y,n=0){let q=Math.imul(x+13,374761393)+Math.imul(y+71,668265263)+n*1442695041;q=Math.imul(q^(q>>>13),1274126177);return ((q^(q>>>16))>>>0)/4294967296;}
@@ -253,7 +271,7 @@ function terrainArt(x,y,px,py,s,t){
  }
 }
 function buildingArt(b,px,py,s){
- if(window.VELORIA_ART?.draw(ctx,b.type==='склад'?'warehouse':'cottage',px,py,s))return;
+ if(window.VELORIA_ART?.draw(ctx,b.stage!==undefined&&b.stage<4?['foundation','frame','walls','roof'][b.stage]:b.type==='склад'?'warehouse':'cottage',px,py,s))return;
  const warehouse=b.type==='склад',roof=warehouse?'#53647b':'#a6574a';
  square(px+s*.05,py+s*.55,s*.9,s*.45,'#523c30');
  square(px+s*.11,py+s*.47,s*.78,s*.44,'#ddb77d');
@@ -300,5 +318,5 @@ function pixelAt(evt){const rect=canvas.getBoundingClientRect(),size=T*cam.zoom;
 canvas.addEventListener('pointerdown',e=>{drag={x:e.clientX,y:e.clientY,cx:cam.x,cy:cam.y,moved:false};canvas.setPointerCapture(e.pointerId)});canvas.addEventListener('pointermove',e=>{if(!drag)return;let dx=e.clientX-drag.x,dy=e.clientY-drag.y;if(Math.abs(dx)+Math.abs(dy)>5)drag.moved=true;cam.x=clamp(drag.cx-dx/(T*cam.zoom),0,W);cam.y=clamp(drag.cy-dy/(T*cam.zoom),0,H);});canvas.addEventListener('pointerup',e=>{if(!drag)return;if(!drag.moved){let pt=pixelAt(e),p=world.people.find(q=>dist(q,pt)<.7);selected=p?{kind:'person',id:p.id}:{kind:'tile',x:clamp(Math.floor(pt.x),0,W-1),y:clamp(Math.floor(pt.y),0,H-1)};updateUI();}drag=null;});canvas.addEventListener('wheel',e=>{e.preventDefault();cam.zoom=clamp(cam.zoom*(e.deltaY>0?.85:1.15),.6,4)},{passive:false});window.addEventListener('keydown',e=>{if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key))e.preventDefault();keys.add(e.key.toLowerCase())});window.addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));
 function save(){try{localStorage.setItem(KEY,JSON.stringify(world));return true}catch(e){addEvent('Не удалось сохранить мир.');updateUI();return false}}function load(){try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.terrain?.length===H&&s.terrain.every(row=>Array.isArray(row)&&row.length===W)&&Array.isArray(s.people)&&Array.isArray(s.buildings)&&Number.isFinite(s.day)&&Number.isFinite(s.nextId)){world=s;world.discoveries ||= [];world.innovation ||= 0;for(const p of world.people)ensureMind(p);return true}}catch(e){}return false}
 document.querySelector('#pause').onclick=()=>{paused=!paused;document.querySelector('#pause').textContent=paused?'▶ Продолжить':'⏸ Пауза'};document.querySelector('#speed').onclick=()=>{speed=speed===1?2:speed===2?4:1;document.querySelector('#speed').textContent='×'+speed};document.querySelector('#save').onclick=()=>{save();updateUI()};document.querySelector('#reset').onclick=()=>{if(confirm('Создать новый мир? Текущее сохранение будет заменено.')){newGame();save();}};
-if(!load())newGame();culture();updateUI();window.VELORIA_TEST={getWorld:()=>world,step:simulation,pathTo,setWorld:w=>{world=w},newGame,think,ensureMind,createIdea,resolveExperiment,materialOutcome,experimentMaterials,civilizationCycle,culture};function loop(t){const dt=Math.min((t-last)||0,100);last=t;let move=dt/(T*cam.zoom)*.3;if(keys.has('w')||keys.has('arrowup'))cam.y-=move;if(keys.has('s')||keys.has('arrowdown'))cam.y+=move;if(keys.has('a')||keys.has('arrowleft'))cam.x-=move;if(keys.has('d')||keys.has('arrowright'))cam.x+=move;cam.x=clamp(cam.x,0,W);cam.y=clamp(cam.y,0,H);if(!paused){acc+=dt*speed;let n=0;while(acc>=100&&n++<12){simulation();acc-=100}}autosave+=dt;if(autosave>=30000){autosave=0;save()}render();requestAnimationFrame(loop)}requestAnimationFrame(loop);
+if(!load())newGame();culture();updateUI();window.VELORIA_TEST={getWorld:()=>world,step:simulation,pathTo,setWorld:w=>{world=w},newGame,think,ensureMind,createIdea,resolveExperiment,materialOutcome,experimentMaterials,civilizationCycle,culture,buildHouse,advanceConstruction};function loop(t){const dt=Math.min((t-last)||0,100);last=t;let move=dt/(T*cam.zoom)*.3;if(keys.has('w')||keys.has('arrowup'))cam.y-=move;if(keys.has('s')||keys.has('arrowdown'))cam.y+=move;if(keys.has('a')||keys.has('arrowleft'))cam.x-=move;if(keys.has('d')||keys.has('arrowright'))cam.x+=move;cam.x=clamp(cam.x,0,W);cam.y=clamp(cam.y,0,H);if(!paused){acc+=dt*speed;let n=0;while(acc>=100&&n++<12){simulation();acc-=100}}autosave+=dt;if(autosave>=30000){autosave=0;save()}render();requestAnimationFrame(loop)}requestAnimationFrame(loop);
 })();
