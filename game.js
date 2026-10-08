@@ -232,10 +232,11 @@ function terrainArt(x,y,px,py,s,t){
  if(t===1){square(px,py+s*.7,s,s*.18,'#acc275');if(v>.35)square(px+s*.35,py+s*.33,s*.13,s*.12,'#e5d795')}
  if(t===2||t===3){
   square(px+s*.13,py+s*.78,s*.22,bs,'#609047');square(px+s*.61,py+s*.44,s*.10,bs,'#b4cb75');
-  if(v>.76){square(px+s*.64,py+s*.64,bs*2,bs*2,'#f9dded');square(px+s*.7,py+s*.65,bs,bs,'#e5a5ce');}
+  if(v>.76){if(window.VELORIA_ART?.draw(ctx,'flower',px,py,s))return;square(px+s*.64,py+s*.64,bs*2,bs*2,'#f9dded');square(px+s*.7,py+s*.65,bs,bs,'#e5a5ce');}
   if(n>.78){square(px+s*.21,py+s*.22,bs*2,bs,'#365f3a');square(px+s*.25,py+s*.26,bs,bs,'#dbe9a5');}
  }
  if(t===3){
+  if(window.VELORIA_ART?.draw(ctx,noise(x,y,6)>.72?'pine':'tree',px,py,s)){return;}
   square(px+s*.44,py+s*.44,s*.17,s*.43,'#684d37');
   square(px+s*.25,py+s*.29,s*.58,s*.40,'#235c3b');
   square(px+s*.19,py+s*.16,s*.57,s*.35,'#367c46');
@@ -244,6 +245,7 @@ function terrainArt(x,y,px,py,s,t){
   square(px+s*.65,py+s*.36,s*.12,s*.09,'#204d37');
  }
  if(t===4){
+  if(window.VELORIA_ART?.draw(ctx,'rock',px,py,s))return;
   square(px+s*.1,py+s*.67,s*.76,s*.2,'#5b716b');
   square(px+s*.21,py+s*.37,s*.64,s*.36,'#a8afa0');
   square(px+s*.34,py+s*.2,s*.37,s*.25,'#cbd0b6');
@@ -251,6 +253,7 @@ function terrainArt(x,y,px,py,s,t){
  }
 }
 function buildingArt(b,px,py,s){
+ if(window.VELORIA_ART?.draw(ctx,b.type==='склад'?'warehouse':'cottage',px,py,s))return;
  const warehouse=b.type==='склад',roof=warehouse?'#53647b':'#a6574a';
  square(px+s*.05,py+s*.55,s*.9,s*.45,'#523c30');
  square(px+s*.11,py+s*.47,s*.78,s*.44,'#ddb77d');
@@ -266,6 +269,7 @@ function buildingArt(b,px,py,s){
  if(warehouse){square(px+s*.88,py+s*.71,s*.24,s*.2,'#a47c4e');square(px+s*.91,py+s*.75,s*.15,s*.04,'#d1a76a')}
 }
 function citizenArt(p,px,py,s){
+ if(window.VELORIA_ART?.draw(ctx,'villager',px-s*.5,py-s*.5+Math.sin(world.tick*.18+p.id)*s*.025,s))return;
  const bob=Math.sin(world.tick*.18+p.id)*Math.max(1,s*.025);
  square(px-s*.12,py+s*.05+bob,s*.25,s*.13,'#34404c');
  square(px-s*.11,py-s*.19+bob,s*.22,s*.3,p.job==='лесоруб'?'#d0a56e':'#8ebcb4');
