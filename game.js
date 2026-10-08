@@ -116,17 +116,111 @@ function buildHouse(){
  }
  return false;
 }
+
+/* v0.4.0: material experiments and emergent village culture.
+   Objects expose physical properties; residents pick goals using shortages and local beliefs.
+   No date-gated technological progression. */
+const MATERIALS={
+ wood:{strength:2,flexibility:3,heat:2,food:0},
+ stone:{strength:5,flexibility:0,heat:0,food:0},
+ clay:{strength:1,flexibility:3,heat:0,food:0},
+ fiber:{strength:0,flexibility:5,heat:2,food:0},
+ grain:{strength:0,flexibility:0,heat:2,food:5}
+};
+const EXPERIMENTS=['bind','shape','heat','stack'];
+function culture(){world.culture ||= {stock:{wood:0,stone:14,clay:12,fiber:14,grain:12},patterns:{},relations:{},stories:[],structures:[],experiments:0,successful:0};return world.culture;}
+function socialLink(a,b){const c=culture(),key=[a.id,b.id].sort((x,y)=>x-y).join(':');return c.relations[key] ||= {trust:0,encounters:0,exchanges:0};}
+function materialOutcome(a,b,method){const A=MATERIALS[a],B=MATERIALS[b];if(!A||!B)return null;
+ const strength=A.strength+B.strength,flex=A.flexibility+B.flexibility,heat=A.heat+B.heat;
+ const properties={strength,flexibility:flex,heat,food:A.food+B.food};
+ if(method==='bind'&&flex>=3&&strength>=2)return {kind:'composite',properties,benefit:'durability',magnitude:strength+flex};
+ if(method==='stack'&&strength>=6)return {kind:'foundation',properties,benefit:'housing',magnitude:strength};
+ if(method==='shape'&&flex>=5)return {kind:'container',properties,benefit:'storage',magnitude:flex};
+ if(method==='heat'&&heat>=4&&strength>=1)return {kind:'hardened',properties,benefit:'durability',magnitude:heat+strength};
+ if(method==='heat'&&properties.food>0)return {kind:'meal',properties,benefit:'nutrition',magnitude:properties.food+heat};
+ return {kind:'failed',properties,benefit:'none',magnitude:0};
+}
+function concern(){const c=culture(),people=Math.max(1,world.people.length);
+ if(world.food<people*3)return 'nutrition';
+ if(world.homes*3<people+2)return 'housing';
+ if(world.wood<18)return 'durability';
+ if(c.stock.grain<5)return 'storage';
+ return ['storage','durability','housing','nutrition'][Math.floor(Math.random()*4)];
+}
+function socialLife(){
+ const people=world.people;if(people.length<2)return;
+ for(const p of people){const m=ensureMind(p);m.contacts ||= {};
+  let q=people.filter(q=>q.id!==p.id&&dist(q,p)<5).sort((a,b)=>dist(a,p)-dist(b,p))[0];
+  if(!q)continue;const link=socialLink(p,q);link.encounters++;
+  const idea=m.ideas.find(i=>i.status==='подтверждена'),other=ensureMind(q);
+  if(idea&&Math.random()<.20){link.exchanges++;link.trust=Math.min(20,link.trust+1);other.beliefs[idea.site]=clamp((other.beliefs[idea.site]||0)+1,-8,12);
+   remember(q,'обучение',p.name+' поделился(лась) опытом');}
+  else if(Math.random()<.08){link.trust=Math.max(-10,link.trust+(world.food<people.length?-1:1));}
+  m.contacts[q.id]=link.trust;
+ }
+}
+function experimentMaterials(p){
+ const c=culture(),m=ensureMind(p);m.materialIdeas ||= [];m.craftExperience ||= {};
+ // Choices respond to unmet needs, not a scripted age/technology order.
+ const desired=concern(),keys=Object.keys(MATERIALS);
+ const available=keys.filter(k=>(c.stock[k]||0)>0||(k==='wood'&&world.wood>0));
+ if(available.length<2)return;
+ const ranking=[];
+ for(const a of available)for(const b of available)for(const method of EXPERIMENTS){
+   const signature=[a,b].sort().join('+')+':'+method;
+   const known=c.patterns[signature],memory=m.craftExperience[signature]||0;
+   if(known?.success&&known.benefit===desired)continue;
+   let score=Math.random()*3-memory*.5+(known?.success?-.6:0);
+   if(desired==='housing'&&method==='stack')score+=2;
+   if(desired==='storage'&&method==='shape')score+=2;
+   if(desired==='nutrition'&&method==='heat')score+=2;
+   if(desired==='durability'&&method==='bind')score+=2;
+   ranking.push({a,b,method,signature,score});
+ }
+ ranking.sort((a,b)=>b.score-a.score);const idea=ranking[0];if(!idea)return;
+ const spend=k=>{if(k==='wood'&&world.wood>0)world.wood--;else c.stock[k]--;};
+ const same=idea.a===idea.b;
+ const count=k=>(k==='wood'?world.wood+(c.stock.wood||0):(c.stock[k]||0));
+ if(same&&count(idea.a)<2)return;
+ spend(idea.a);spend(idea.b);
+ const outcome=materialOutcome(idea.a,idea.b,idea.method);
+ c.experiments++;m.craftExperience[idea.signature]=(m.craftExperience[idea.signature]||0)+1;
+ m.materialIdeas.push({day:world.day,inputs:[idea.a,idea.b],method:idea.method,outcome:outcome.kind,benefit:outcome.benefit});
+ if(m.materialIdeas.length>12)m.materialIdeas.shift();
+ const pattern=c.patterns[idea.signature]||{trials:0,success:false,benefit:'none',magnitude:0,discoverer:p.name};
+ pattern.trials++;pattern.success=outcome.kind!=='failed';pattern.benefit=outcome.benefit;pattern.magnitude=outcome.magnitude;c.patterns[idea.signature]=pattern;
+ remember(p,'материал',idea.a+' + '+idea.b+' / '+idea.method+' → '+outcome.kind);
+ if(outcome.kind==='failed')return;
+ c.successful++;m.learning++;const label=outcome.kind+' ('+idea.a+'+'+idea.b+')';
+ world.discoveries ||= [];if(!world.discoveries.includes(label)){world.discoveries.push(label);addEvent(p.name+' обнаружил(а) '+label+'.');}
+ const utility=outcome.benefit===desired ? 2 : 1;
+ if(outcome.benefit==='nutrition')world.food+=utility;
+ if(outcome.benefit==='storage')c.stock.grain+=utility;
+ if(outcome.benefit==='durability')world.wood+=utility;
+ if(outcome.benefit==='housing'&&world.wood>=18&&world.people.length>=world.homes*3)buildHouse();
+ c.stories.unshift({day:world.day,by:p.name,what:label,need:desired});
+ c.stories=c.stories.slice(0,24);
+}
+function civilizationCycle(){
+ const c=culture();if(world.day%2===0)socialLife();
+ // Modest replenishment models ambient gathering of raw materials, not inventions.
+ for(const k of ['stone','clay','fiber','grain'])if(c.stock[k]<10)c.stock[k]+=1;
+ const candidates=world.people.filter(p=>p.energy>20&&p.hunger<75);
+ if(candidates.length){const p=candidates[(world.day+world.seed)%candidates.length];experimentMaterials(p);}
+}
+
 function simulation(){
  world.tick++;
  for(const p of [...world.people])stepPerson(p);
  if(world.tick%120===0){
   world.day++;
+  civilizationCycle();
   if(world.wood>=18&&world.people.length>=world.homes*3)buildHouse();
   if(world.people.length<world.homes*3&&world.food>=18&&Math.random()<.45){addPerson(64+rnd(-1,1),64+rnd(-1,1));world.food-=6;addEvent('В деревне появился новый житель.');}
   if(world.day%8===0)addEvent('Жители обсуждают накопленный опыт.');updateUI();
  }
 }
-function updateUI(){stats.innerHTML=`🌅 День: <b>${world.day}</b><br>👥 Жителей: <b>${world.people.length}</b><br>🍎 Еда: <b>${world.food}</b><br>🪵 Древесина: <b>${world.wood}</b><br>🏠 Домов: <b>${world.homes}</b><br>🧠 Проверенных опытов: <b>${world.innovation||0}</b><br>💡 Открытий: <b>${(world.discoveries||[]).length}</b><br>🌍 Размер мира: ${W} × ${H}`;log.replaceChildren(...world.events.slice(0,16).map(s=>{let d=document.createElement('div');d.textContent=s;return d}));if(selected){if(selected.kind==='person'){let p=world.people.find(x=>x.id===selected.id);details.textContent=p?`${p.name} · ${p.job} · возраст ${p.age} · голод ${Math.round(p.hunger)}% · энергия ${Math.round(p.energy)}% · цель: ${ensureMind(p).goal} · опытов: ${ensureMind(p).trials} · память: ${ensureMind(p).memories.slice(-2).map(m=>m.message).join('; ')}`:'Житель покинул мир.';}else details.textContent=`Клетка (${selected.x}, ${selected.y}) · ${['глубокая вода','берег','равнина','лес','горы'][tile(selected.x,selected.y)]}`;}}
+function updateUI(){stats.innerHTML=`🌅 День: <b>${world.day}</b><br>👥 Жителей: <b>${world.people.length}</b><br>🍎 Еда: <b>${world.food}</b><br>🪵 Древесина: <b>${world.wood}</b><br>🏠 Домов: <b>${world.homes}</b><br>🧠 Проверенных опытов: <b>${world.innovation||0}</b><br>⚗️ Материальных экспериментов: <b>${culture().experiments}</b><br>🤝 Социальных связей: <b>${Object.keys(culture().relations).length}</b><br>💡 Открытий: <b>${(world.discoveries||[]).length}</b><br>🌍 Размер мира: ${W} × ${H}`;log.replaceChildren(...world.events.slice(0,16).map(s=>{let d=document.createElement('div');d.textContent=s;return d}));if(selected){if(selected.kind==='person'){let p=world.people.find(x=>x.id===selected.id);details.textContent=p?`${p.name} · ${p.job} · возраст ${p.age} · голод ${Math.round(p.hunger)}% · энергия ${Math.round(p.energy)}% · цель: ${ensureMind(p).goal} · опытов: ${ensureMind(p).trials} · память: ${ensureMind(p).memories.slice(-2).map(m=>m.message).join('; ')}`:'Житель покинул мир.';}else details.textContent=`Клетка (${selected.x}, ${selected.y}) · ${['глубокая вода','берег','равнина','лес','горы'][tile(selected.x,selected.y)]}`;}}
 const colors=['#2a627c','#5696a1','#789b56','#376b42','#7a8179'];function render(){let width=canvas.clientWidth,height=canvas.clientHeight;if(canvas.width!==Math.round(width*devicePixelRatio)||canvas.height!==Math.round(height*devicePixelRatio)){canvas.width=Math.round(width*devicePixelRatio);canvas.height=Math.round(height*devicePixelRatio);}ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);ctx.imageSmoothingEnabled=false;ctx.fillStyle='#152d39';ctx.fillRect(0,0,width,height);const size=T*cam.zoom,ox=width/2-cam.x*size,oy=height/2-cam.y*size;const xmin=clamp(Math.floor(-ox/size)-1,0,W-1),xmax=clamp(Math.ceil((width-ox)/size)+1,0,W-1),ymin=clamp(Math.floor(-oy/size)-1,0,H-1),ymax=clamp(Math.ceil((height-oy)/size)+1,0,H-1);for(let y=ymin;y<=ymax;y++)for(let x=xmin;x<=xmax;x++){let t=world.terrain[y][x],px=Math.floor(ox+x*size),py=Math.floor(oy+y*size);ctx.fillStyle=colors[t];ctx.fillRect(px,py,Math.ceil(size)+1,Math.ceil(size)+1);if(t===3){ctx.fillStyle='#254e32';ctx.fillRect(px+size*.3,py+size*.14,size*.42,size*.58);ctx.fillStyle='#5b8b44';ctx.fillRect(px+size*.38,py+size*.12,size*.22,size*.29);}else if(t===2&&(x*17+y*29)%19===0){ctx.fillStyle='#a0b96c';ctx.fillRect(px+size*.5,py+size*.5,Math.max(1,size*.1),Math.max(1,size*.1));}else if(t===4){ctx.fillStyle='#a4aaa1';ctx.fillRect(px+size*.28,py+size*.22,size*.42,size*.4);}}
 for(const b of world.buildings){const px=ox+b.x*size,py=oy+b.y*size;if(px<-size||py<-size||px>width||py>height)continue;ctx.fillStyle=b.type==='склад'?'#e1b368':'#cc8b62';ctx.fillRect(px+size*.12,py+size*.35,size*.76,size*.55);ctx.fillStyle=b.type==='склад'?'#775245':'#854c47';ctx.beginPath();ctx.moveTo(px,py+size*.37);ctx.lineTo(px+size*.5,py+size*.04);ctx.lineTo(px+size,py+size*.37);ctx.fill();ctx.fillStyle='#3a302c';ctx.fillRect(px+size*.42,py+size*.65,size*.17,size*.25);}
 for(const p of world.people){const px=ox+(p.x+.5)*size,py=oy+(p.y+.5)*size;if(px<0||py<0||px>width||py>height)continue;ctx.fillStyle='#1c2732';ctx.fillRect(px-size*.1,py-size*.1,size*.2,size*.35);ctx.fillStyle=p.job==='лесоруб'?'#e6c782':'#e3a9c5';ctx.fillRect(px-size*.14,py-size*.23,size*.28,size*.23);ctx.fillStyle='#f7dbb1';ctx.fillRect(px-size*.1,py-size*.36,size*.2,size*.15);}
@@ -135,5 +229,5 @@ function pixelAt(evt){const rect=canvas.getBoundingClientRect(),size=T*cam.zoom;
 canvas.addEventListener('pointerdown',e=>{drag={x:e.clientX,y:e.clientY,cx:cam.x,cy:cam.y,moved:false};canvas.setPointerCapture(e.pointerId)});canvas.addEventListener('pointermove',e=>{if(!drag)return;let dx=e.clientX-drag.x,dy=e.clientY-drag.y;if(Math.abs(dx)+Math.abs(dy)>5)drag.moved=true;cam.x=clamp(drag.cx-dx/(T*cam.zoom),0,W);cam.y=clamp(drag.cy-dy/(T*cam.zoom),0,H);});canvas.addEventListener('pointerup',e=>{if(!drag)return;if(!drag.moved){let pt=pixelAt(e),p=world.people.find(q=>dist(q,pt)<.7);selected=p?{kind:'person',id:p.id}:{kind:'tile',x:clamp(Math.floor(pt.x),0,W-1),y:clamp(Math.floor(pt.y),0,H-1)};updateUI();}drag=null;});canvas.addEventListener('wheel',e=>{e.preventDefault();cam.zoom=clamp(cam.zoom*(e.deltaY>0?.85:1.15),.6,4)},{passive:false});window.addEventListener('keydown',e=>{if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key))e.preventDefault();keys.add(e.key.toLowerCase())});window.addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));
 function save(){try{localStorage.setItem(KEY,JSON.stringify(world));return true}catch(e){addEvent('Не удалось сохранить мир.');updateUI();return false}}function load(){try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.terrain?.length===H&&s.terrain.every(row=>Array.isArray(row)&&row.length===W)&&Array.isArray(s.people)&&Array.isArray(s.buildings)&&Number.isFinite(s.day)&&Number.isFinite(s.nextId)){world=s;world.discoveries ||= [];world.innovation ||= 0;for(const p of world.people)ensureMind(p);return true}}catch(e){}return false}
 document.querySelector('#pause').onclick=()=>{paused=!paused;document.querySelector('#pause').textContent=paused?'▶ Продолжить':'⏸ Пауза'};document.querySelector('#speed').onclick=()=>{speed=speed===1?2:speed===2?4:1;document.querySelector('#speed').textContent='×'+speed};document.querySelector('#save').onclick=()=>{save();updateUI()};document.querySelector('#reset').onclick=()=>{if(confirm('Создать новый мир? Текущее сохранение будет заменено.')){newGame();save();}};
-if(!load())newGame();updateUI();window.VELORIA_TEST={getWorld:()=>world,step:simulation,pathTo,setWorld:w=>{world=w},newGame,think,ensureMind,createIdea,resolveExperiment};function loop(t){const dt=Math.min((t-last)||0,100);last=t;let move=dt/(T*cam.zoom)*.3;if(keys.has('w')||keys.has('arrowup'))cam.y-=move;if(keys.has('s')||keys.has('arrowdown'))cam.y+=move;if(keys.has('a')||keys.has('arrowleft'))cam.x-=move;if(keys.has('d')||keys.has('arrowright'))cam.x+=move;cam.x=clamp(cam.x,0,W);cam.y=clamp(cam.y,0,H);if(!paused){acc+=dt*speed;let n=0;while(acc>=100&&n++<12){simulation();acc-=100}}autosave+=dt;if(autosave>=30000){autosave=0;save()}render();requestAnimationFrame(loop)}requestAnimationFrame(loop);
+if(!load())newGame();culture();updateUI();window.VELORIA_TEST={getWorld:()=>world,step:simulation,pathTo,setWorld:w=>{world=w},newGame,think,ensureMind,createIdea,resolveExperiment,materialOutcome,experimentMaterials,civilizationCycle,culture};function loop(t){const dt=Math.min((t-last)||0,100);last=t;let move=dt/(T*cam.zoom)*.3;if(keys.has('w')||keys.has('arrowup'))cam.y-=move;if(keys.has('s')||keys.has('arrowdown'))cam.y+=move;if(keys.has('a')||keys.has('arrowleft'))cam.x-=move;if(keys.has('d')||keys.has('arrowright'))cam.x+=move;cam.x=clamp(cam.x,0,W);cam.y=clamp(cam.y,0,H);if(!paused){acc+=dt*speed;let n=0;while(acc>=100&&n++<12){simulation();acc-=100}}autosave+=dt;if(autosave>=30000){autosave=0;save()}render();requestAnimationFrame(loop)}requestAnimationFrame(loop);
 })();
