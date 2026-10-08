@@ -297,6 +297,7 @@ function citizenArt(p,px,py,s){
  if(p.carrying){square(px+s*.13,py-s*.12+bob,s*.24,s*.09,p.job==='лесоруб'?'#81563d':'#e2b868');}
 }
 function render(){
+ if(window.VELORIA_SCENE?.render){window.VELORIA_SCENE.render(ctx,world,cam,T,canvas);return;}
  const width=canvas.clientWidth,height=canvas.clientHeight,dpr=window.devicePixelRatio||1;
  if(canvas.width!==Math.round(width*dpr)||canvas.height!==Math.round(height*dpr)){canvas.width=Math.round(width*dpr);canvas.height=Math.round(height*dpr);}
  ctx.setTransform(dpr,0,0,dpr,0,0);ctx.imageSmoothingEnabled=false;

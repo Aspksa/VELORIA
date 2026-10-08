@@ -1,0 +1,14 @@
+'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const calls={rect:0,fill:0};
+const ctx={setTransform(){},beginPath(){},moveTo(){},lineTo(){},closePath(){},fill(){calls.fill++},fillRect(){calls.rect++},set fillStyle(v){this._fillStyle=v},get fillStyle(){return this._fillStyle},imageSmoothingEnabled:false};
+const window={devicePixelRatio:1},context={window,Math};vm.createContext(context);
+vm.runInContext(fs.readFileSync('visual-scene.js','utf8'),context,{timeout:2000});
+assert.ok(window.VELORIA_SCENE?.render);
+const terrain=Array.from({length:128},()=>Array(128).fill(2));
+terrain[64][64]=0;terrain[63][64]=3;terrain[63][65]=4;
+const world={terrain,tick:100,buildings:[{x:64,y:65,type:'склад'},{x:66,y:65,type:'дом',stage:2}],people:[{x:64,y:64,id:1,job:'лесоруб',carrying:1}]};
+const canvas={clientWidth:800,clientHeight:600,width:800,height:600};
+window.VELORIA_SCENE.render(ctx,world,{x:64,y:64,zoom:2},16,canvas);
+assert.ok(calls.rect>100,'terrain and sprites must draw');assert.ok(calls.fill>0,'roof polygons must draw');
+console.log('PASS: map terrain, buildings, water, villagers and construction stage render',calls);
