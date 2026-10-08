@@ -88,6 +88,11 @@ function think(p){const m=ensureMind(p);if(world.tick%120===p.id%120){
 function stepPerson(p){
  think(p);p.hunger=clamp(p.hunger+.012,0,110);p.energy=clamp(p.energy-.012,0,100);
  if(p.hunger>=100){world.people=world.people.filter(q=>q.id!==p.id);addEvent(`${p.name} погиб(ла) от голода.`);return;}
+ if(p.carrying<3&&p.hunger<=55&&p.energy>=18&&ensureMind(p).goal==='строить дом'){
+  const site=world.buildings.find(b=>b.stage!==undefined&&b.stage<4);
+  if(site){if(!p.target||dist(p.target,{x:site.x+.5,y:site.y+.5})>1)setDestination(p,{x:site.x+.5,y:site.y+.5});movePerson(p);return;}
+  ensureMind(p).goal='исследовать';p.target=null;
+ }
  if(p.carrying>=3||p.hunger>55||p.energy<12){
   returnHome(p);movePerson(p);
   if(dist(p,{x:64.5,y:64.5})<1.1){
@@ -262,10 +267,10 @@ function civilizationCycle(){
 function simulation(){
  world.tick++;
  for(const p of [...world.people])stepPerson(p);
+ advanceConstruction();
  if(world.tick%120===0){
   world.day++;
   civilizationCycle();
-  advanceConstruction();
   if(constructionNeed()>0)buildHouse();
   if(world.people.length<world.homes*3&&world.food>=18&&Math.random()<.45){addPerson(64+rnd(-1,1),64+rnd(-1,1));world.food-=6;addEvent('В деревне появился новый житель.');}
   if(world.day%8===0)addEvent('Жители обсуждают накопленный опыт.');updateUI();
