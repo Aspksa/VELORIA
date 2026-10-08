@@ -49,6 +49,13 @@
  "......aaaa......","....aaaaaaa.....","...aaaAAAaaa....","..aaaaAAAAaaa...","..aaAAAAAaaaa...","..aaaaaaaaaa....",
  "...ddddddddd....","....dddddd......","................","................","................","................"]
  };
+ const stages={
+ foundation:["................","................","................","................","................","................","................","..ssssssssssss..","..sdddddddddds..","..sdssssssssds..","..sdssssssssds..","..sdssssssssds..","..sdddddddddds..","..ssssssssssss..","................","................"],
+ frame:[".......bb.......",".......bb.......","..bb...bb...bb..","..b.b..bb..b.b..","..b..b.bb.b..b..","..bbbbbbbbbbbb..","..b..b....b..b..","..b..b....b..b..","..b..b....b..b..","..b..b....b..b..","..b..b....b..b..","..b..bbbbbb..b..","..b..b....b..b..","..bbbbbbbbbbbb..","................","................"],
+ walls:["................",".......bb.......",".......bb.......","..bbbbbbbbbbbb..","..bwwwwwwwwwwb..","..bwwwwwwwwwwb..","..bwwYYwwYYwwb..","..bwwYYwwYYwwb..","..bwwwwwwwwwwb..","..bwwwwbbwwwwb..","..bwwwwbbwwwwb..","..bwwwwbbwwwwb..","..bbbbbbbbbbbb..","................","................","................"],
+ roof:["................",".......RR.......","......RRRR......",".....RRRRRR.....","....RRRrrRRR....","...RRRRRRRRRR...","..RRRRRRRRRRRR..",".dddddddddddddd.","..wwwwwwwwwwww..","..wYYwwwwYYwww..","..wYYwwwwYYwww..","..wwwwbbwwwwww..","..wwwwbbwwwwww..","..wwwwbbwwwwww..","..ssssssssssss..","................"]
+ };
+ Object.assign(sprites,stages);
  const colors={'.':null,G:'#255c3b',g:'#3d8047',L:'#6fba64',D:'#3b854a',B:'#674d37',b:'#a2744c',
  P:'#ef9cbf',Y:'#ffe3aa',y:'#f7dfa3',R:'#a24c45',r:'#cf7361',d:'#69463a',w:'#d8b178',
  s:'#867351',A:'#586d86',a:'#b5c1b6',e:'#312e38',S:'#f1c8a4',h:'#4e382f',H:'#79503b',
