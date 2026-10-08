@@ -13,6 +13,8 @@ jobs:
         with:
           node-version: '22'
       - name: Syntax validation
-        run: node --check game.js
+        run: node --check game.js && node --check sprite-art.js
+      - name: Sprite atlas regression
+        run: node tests/sprites.cjs
       - name: Headless simulation regression
         run: node tests/simulation.cjs
