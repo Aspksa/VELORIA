@@ -6,7 +6,7 @@ vm.createContext(context);
 vm.runInContext(fs.readFileSync('sprite-art.js','utf8'),context);
 const art=context.window.VELORIA_ART;
 assert.ok(art&&art.draw); 
-for(const name of ['tree','pine','flower','rock','cottage','warehouse','villager']){
+for(const name of ['tree','pine','flower','rock','cottage','warehouse','villager','foundation','frame','walls','roof']){
  const sprite=art.make(name);assert.equal(sprite.width,16,name);assert.equal(sprite.height,16,name);
  assert.equal(art.sprites[name].length,16,name);
  for(const row of art.sprites[name])assert.ok(row.length>=16,name+' short sprite row');
