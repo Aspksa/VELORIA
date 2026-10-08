@@ -8,7 +8,7 @@ const api=ctx.window.VELORIA_TEST;assert.ok(api,'testing API exists');
 const w=api.getWorld();assert.equal(w.terrain.length,128);assert.equal(w.people.length,8);
 assert.equal(api.materialOutcome('stone','wood','stack').benefit,'housing');
 assert.equal(api.materialOutcome('fiber','wood','bind').benefit,'durability');
-assert.equal(api.materialOutcome('grain','stone','heat').benefit,'nutrition');
+assert.equal(api.materialOutcome('grain','grain','heat').benefit,'nutrition');
 assert.equal(api.materialOutcome('stone','stone','heat').kind,'failed');
 const c=api.culture();assert.ok(c.stock.stone>=0);
 for(let i=0;i<2400;i++)api.step();
